@@ -53,6 +53,7 @@ namespace AzureTableStorage
 				// Demonstrate how to insert the entity
 				Console.WriteLine("Insert an Entity.");
 				customer = await _storageUtils.InsertOrMergeEntityAsync(table, customer);
+				Console.WriteLine($"Email:{customer.Email}, Phone: {customer.PhoneNumber}");
 
 				// Demonstrate how to Update the entity by changing the phone number
 				Console.WriteLine("Update an existing Entity using the InsertOrMerge Upsert Operation.");
@@ -62,12 +63,13 @@ namespace AzureTableStorage
 
 				// Demonstrate how to Read the updated entity using a point query 
 				Console.WriteLine("Reading the updated Entity.");
-				customer = await _storageUtils.RetrieveEntityUsingPointQueryAsync(table, "Harp", "Walter");
+				customer = await _storageUtils.RetrieveEntityUsingPointQueryAsync<CustomerEntity>(table, "Harp", "Walter");
+				Console.WriteLine($"Email:{customer.Email}, Phone: {customer.PhoneNumber}");
 				Console.WriteLine();
 
 				// Select All CustomerEntities in the table
 				Console.WriteLine("Selecting All Customer Entities.");
-				var customers = await _storageUtils.SelectAll(table);
+				var customers = await _storageUtils.SelectAll<CustomerEntity>(table);
 				Console.WriteLine();
 
 				// Demonstrate how to Delete an entity

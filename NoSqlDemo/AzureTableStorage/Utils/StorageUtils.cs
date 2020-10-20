@@ -13,13 +13,15 @@ namespace AzureTableStorage.Utils
 
 		Task<CloudTable> CreateOrGetTableAsync(string connectionString, string tableName);
 
-		Task<CustomerEntity> InsertOrMergeEntityAsync(CloudTable table, CustomerEntity entity);
+		Task<T> InsertOrMergeEntityAsync<T>(CloudTable table, T entity) where T : TableEntity;
 
-		Task<CustomerEntity> RetrieveEntityUsingPointQueryAsync(CloudTable table, string partitionKey, string rowKey);
+		Task<T> RetrieveEntityUsingPointQueryAsync<T>(CloudTable table, string partitionKey, string rowKey) where T : TableEntity;
 
-		Task<List<CustomerEntity>> SelectAll(CloudTable table);
+		Task<List<T>> SelectAll<T>(CloudTable table) where T : ITableEntity, new();
 
-		Task DeleteEntityAsync(CloudTable table, CustomerEntity deleteEntity);
+		Task<List<T>> SelectAllInPartition<T>(CloudTable table, string partitionKey) where T : ITableEntity, new();
+
+		Task DeleteEntityAsync<T>(CloudTable table, T deleteEntity) where T : TableEntity;
 	}
 
 
@@ -75,7 +77,7 @@ namespace AzureTableStorage.Utils
 
 
 
-		public async Task<CustomerEntity> InsertOrMergeEntityAsync(CloudTable table, CustomerEntity entity)
+		public async Task<T> InsertOrMergeEntityAsync<T>(CloudTable table, T entity) where T: TableEntity
 		{
 			if (entity == null)
 			{
@@ -89,7 +91,7 @@ namespace AzureTableStorage.Utils
 
 				// Execute the operation.
 				TableResult result = await table.ExecuteAsync(insertOrMergeOperation);
-				CustomerEntity insertedCustomer = result.Result as CustomerEntity;
+				T insertedRow = result.Result as T;
 
 				// No charge - table storage, not cosmos.
 				//if (result.RequestCharge.HasValue)
@@ -97,7 +99,7 @@ namespace AzureTableStorage.Utils
 				//	Console.WriteLine("Request Charge of InsertOrMerge Operation: " + result.RequestCharge);
 				//}
 
-				return insertedCustomer;
+				return insertedRow;
 			}
 			catch (StorageException e)
 			{
@@ -108,17 +110,13 @@ namespace AzureTableStorage.Utils
 		}
 
 
-		public async Task<CustomerEntity> RetrieveEntityUsingPointQueryAsync(CloudTable table, string partitionKey, string rowKey)
+		public async Task<T> RetrieveEntityUsingPointQueryAsync<T>(CloudTable table, string partitionKey, string rowKey) where T : TableEntity
 		{
 			try
 			{
-				TableOperation retrieveOperation = TableOperation.Retrieve<CustomerEntity>(partitionKey, rowKey);
+				TableOperation retrieveOperation = TableOperation.Retrieve<T>(partitionKey, rowKey);
 				TableResult result = await table.ExecuteAsync(retrieveOperation);
-				CustomerEntity customer = result.Result as CustomerEntity;
-				if (customer != null)
-				{
-					Console.WriteLine("\t{0}\t{1}\t{2}\t{3}", customer.PartitionKey, customer.RowKey, customer.Email, customer.PhoneNumber);
-				}
+				T row = result.Result as T;
 
 				// Not cosmos, so no charge
 				//if (result.RequestCharge.HasValue)
@@ -126,7 +124,7 @@ namespace AzureTableStorage.Utils
 				//	Console.WriteLine("Request Charge of Retrieve Operation: " + result.RequestCharge);
 				//}
 
-				return customer;
+				return row;
 			}
 			catch (StorageException e)
 			{
@@ -137,14 +135,14 @@ namespace AzureTableStorage.Utils
 		}
 
 
-		public async Task<List<CustomerEntity>> SelectAll(CloudTable table)
+		public async Task<List<T>> SelectAll<T>(CloudTable table) where T : ITableEntity, new()
 		{
 			TableContinuationToken token = null;
-			var entities = new List<CustomerEntity>();
+			var entities = new List<T>();
 			do
 			{
 				// This query can only get 1000 results, so need to send in continuation token to get next (1000).
-				var queryResult = await table.ExecuteQuerySegmentedAsync(new TableQuery<CustomerEntity>(), token);
+				var queryResult = await table.ExecuteQuerySegmentedAsync(new TableQuery<T>(), token);
 				entities.AddRange(queryResult.Results);
 				token = queryResult.ContinuationToken;
 			} while (token != null);
@@ -153,7 +151,24 @@ namespace AzureTableStorage.Utils
 		}
 
 
-		public async Task DeleteEntityAsync(CloudTable table, CustomerEntity deleteEntity)
+		public async Task<List<T>> SelectAllInPartition<T>(CloudTable table, string partitionKey) where T : ITableEntity, new()
+		{
+			TableContinuationToken token = null;
+			var entities = new List<T>();
+			do
+			{
+				var query = new TableQuery<T>().Where(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, partitionKey));
+				// This query can only get 1000 results, so need to send in continuation token to get next (1000).
+				var queryResult = await table.ExecuteQuerySegmentedAsync(query, token);
+				entities.AddRange(queryResult.Results);
+				token = queryResult.ContinuationToken;
+			} while (token != null);
+
+			return entities;
+		}
+
+
+		public async Task DeleteEntityAsync<T>(CloudTable table, T deleteEntity) where T : TableEntity
 		{
 			try
 			{
