@@ -65,6 +65,11 @@ namespace AzureTableStorage
 				customer = await _storageUtils.RetrieveEntityUsingPointQueryAsync(table, "Harp", "Walter");
 				Console.WriteLine();
 
+				// Select All CustomerEntities in the table
+				Console.WriteLine("Selecting All Customer Entities.");
+				var customers = await _storageUtils.SelectAll(table);
+				Console.WriteLine();
+
 				// Demonstrate how to Delete an entity
 				Console.WriteLine("Delete the entity. ");
 				await _storageUtils.DeleteEntityAsync(table, customer);

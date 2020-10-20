@@ -17,6 +17,8 @@ namespace AzureTableStorage.Utils
 
 		Task<CustomerEntity> RetrieveEntityUsingPointQueryAsync(CloudTable table, string partitionKey, string rowKey);
 
+		Task<List<CustomerEntity>> SelectAll(CloudTable table);
+
 		Task DeleteEntityAsync(CloudTable table, CustomerEntity deleteEntity);
 	}
 
@@ -132,6 +134,22 @@ namespace AzureTableStorage.Utils
 				Console.ReadLine();
 				throw;
 			}
+		}
+
+
+		public async Task<List<CustomerEntity>> SelectAll(CloudTable table)
+		{
+			TableContinuationToken token = null;
+			var entities = new List<CustomerEntity>();
+			do
+			{
+				// This query can only get 1000 results, so need to send in continuation token to get next (1000).
+				var queryResult = await table.ExecuteQuerySegmentedAsync(new TableQuery<CustomerEntity>(), token);
+				entities.AddRange(queryResult.Results);
+				token = queryResult.ContinuationToken;
+			} while (token != null);
+
+			return entities;
 		}
 
 
