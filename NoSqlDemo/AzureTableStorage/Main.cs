@@ -23,7 +23,8 @@ namespace AzureTableStorage
 
 		public async Task Run()
 		{
-			await _quickTest.RunBatchSample();
+			await _quickTest.RunBatchSampleAsync();
+			//await _quickTest.RunBatchSampleParllel();
 			//await _quickTest.RunSamples();
 		}
 	}

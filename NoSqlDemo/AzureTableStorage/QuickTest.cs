@@ -12,7 +12,8 @@ namespace AzureTableStorage
 	public interface IQuickTest
 	{
 		Task RunSamples();
-		Task RunBatchSample();
+		Task RunBatchSampleParllel();
+		Task RunBatchSampleAsync();
 	}
 
 	public class QuickTest : IQuickTest
@@ -30,51 +31,55 @@ namespace AzureTableStorage
 		}
 
 
-		public async Task RunBatchSample()
+
+
+		public async Task RunBatchSampleParllel()
 		{
 			try
 			{
 				string tableName = "CustomerBatchDemoTable2";
 				CloudTable table = await _storageUtils.CreateOrGetTableAsync(connectionString, tableName);
 
-				string[] lastNames = new string[] { "Jones", "Jones", "Jones", "Jones", "Jones","Jones","Jones",
-																						"Smith", "Roberts" };
+				var customerEntities = GetCustomers(100000);
 
-				Random r = new Random();
-				List<CustomerEntity> customerEntities = new List<CustomerEntity>();
-				for (int i = 1; i <= 100000; i++)
+				_storageBatchUtils.InsertBatchParallel<CustomerEntity>(table, customerEntities, 4);
+				
+				Console.WriteLine("Check the data and see if it's any good. Delete the data? (y/n)");
+				if (Console.ReadLine().ToLower().Contains("y"))
 				{
-					var lIndex = r.Next(0, lastNames.Length - 1);
-					var surname = lastNames[lIndex];
-					var forename = $"Bert{i.ToString()}";
-					var email = $"{forename}@contoso.com";
-					var phone = $"KLONDIKE-555-" + i;
-
-					CustomerEntity customer = new CustomerEntity(surname, forename, email, phone);
-					customerEntities.Add(customer);
+					// Delete the table
+					await table.DeleteIfExistsAsync();
 				}
-
-
-
-				var rangePartitioner = Partitioner.Create(0, customerEntities.Count);
-				Parallel.ForEach(rangePartitioner, 
-					new ParallelOptions { MaxDegreeOfParallelism = 4 },
-					(range, loopState) =>
+			}
+			catch (Exception ex)
+			{
+				if (ex is AggregateException)
 				{
-					ConcurrentBag<CustomerEntity> chunk = new ConcurrentBag<CustomerEntity>();
-					// Loop over each range element without a delegate invocation. 
-					for (int i = range.Item1; i < range.Item2; i++)
+					foreach (var ae in ((AggregateException)ex).Flatten().InnerExceptions)
 					{
-						chunk.Add(customerEntities[i]);
-						
+						var msg = ae.ToString();
+						Console.WriteLine(msg);
 					}
-					Console.WriteLine($"Range: {range.Item1}-{range.Item2}");
-					_storageBatchUtils.InsertBatch<CustomerEntity>(table, chunk);
-				});
+				}
+				else
+				{
+					var msg = ex.ToString();
+					Console.WriteLine(msg);
+				}
+			}
+		}
 
 
+		public async Task RunBatchSampleAsync()
+		{
+			try
+			{
+				string tableName = "CustomerBatchDemoTable2";
+				CloudTable table = await _storageUtils.CreateOrGetTableAsync(connectionString, tableName);
 
-				/////await _storageBatchUtils.InsertBatch<CustomerEntity>(table, customerEntities);
+				var customerEntities = GetCustomers(2000);
+
+				await _storageBatchUtils.InsertBatchAsync<CustomerEntity>(table, customerEntities); 
 
 				Console.WriteLine("Check the data and see if it's any good. Delete the data? (y/n)");
 				if (Console.ReadLine().ToLower().Contains("y"))
@@ -100,6 +105,8 @@ namespace AzureTableStorage
 				}
 			}
 		}
+
+
 
 
 		public async Task RunSamples()
@@ -173,7 +180,28 @@ namespace AzureTableStorage
 		}
 
 
+		private List<CustomerEntity> GetCustomers(int numberToCreate)
+		{
+			Random r = new Random();
+			string[] lastNames = new string[] { "Smith", "Smith", "Smith", "Smith",
+																					"Smith", "Smith", "Smith", "Smith",
+																					"Jones", "Roberts" };
 
+			List<CustomerEntity> customerEntities = new List<CustomerEntity>();
+			for (int i = 1; i <= numberToCreate; i++)
+			{
+				var lIndex = r.Next(0, lastNames.Length - 1);
+				var surname = lastNames[lIndex];
+				var forename = $"Bert{i.ToString()}";
+				var email = $"{forename}@contoso.com";
+				var phone = $"KLONDIKE-555-" + i;
+
+				CustomerEntity customer = new CustomerEntity(surname, forename, email, phone);
+				customerEntities.Add(customer);
+			}
+
+			return customerEntities;
+		}
 
 
 	}

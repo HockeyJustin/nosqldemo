@@ -10,25 +10,46 @@ namespace AzureTableStorage.Utils
 {
   public interface IStorageBatchUtils
 	{
+    void InsertBatchParallel<T>(CloudTable table, List<T> entities, int maxDegreeParallelism) where T : TableEntity;
     void InsertBatch<T>(CloudTable table, ConcurrentBag<T> entities) where T : TableEntity;
-    Task InsertBatch<T>(CloudTable table, List<T> customerEntities) where T : TableEntity;
+    Task InsertBatchAsync<T>(CloudTable table, List<T> customerEntities) where T : TableEntity;
 
   }
 
 
   public class StorageBatchUtils : IStorageBatchUtils
 	{
+    public void InsertBatchParallel<T>(CloudTable table, List<T> entities, int maxDegreeParallelism) where T : TableEntity
+		{
+      var rangePartitioner = Partitioner.Create(0, entities.Count);
+      Parallel.ForEach(rangePartitioner,
+        new ParallelOptions { MaxDegreeOfParallelism = maxDegreeParallelism },
+        (range, loopState) =>
+        {
+          ConcurrentBag<T> chunk = new ConcurrentBag<T>();
+            // Loop over each range element without a delegate invocation. 
+            for (int i = range.Item1; i < range.Item2; i++)
+          {
+            chunk.Add(entities[i]);
+
+          }
+          Console.WriteLine($"Range: {range.Item1}-{range.Item2}");
+          InsertBatch<T>(table, chunk);
+        });
+    }
 
     public void InsertBatch<T>(CloudTable table, ConcurrentBag<T> entities) where T : TableEntity
     {
       int rowOffset = 0;
 
+      // Need to chunk the data down to 100's. Can only insert 100 at a time.
       while (rowOffset < entities.Count)
       {
         var rows = entities.Skip(rowOffset).Take(100).ToList();
 
         var partitionKeys = rows.Select(_ => _.PartitionKey).Distinct();
 
+        // Can only batch insert same partitionKeys per batch
         foreach (var pkRow in partitionKeys)
         {
           var rowsToAdd = rows.Where(_ => _.PartitionKey == pkRow).ToList();
@@ -38,7 +59,8 @@ namespace AzureTableStorage.Utils
           {
             batch.InsertOrReplace(row);
           }
-          // submit
+          // submit - MUST BE SYNCHRONOUS IN A PARALLEL.FOREACH
+          //          so we know when this thread is done.
           var task = Task.Run(async () => await table.ExecuteBatchAsync(batch));
           var result = task.Result;
         }
@@ -47,7 +69,12 @@ namespace AzureTableStorage.Utils
       }
     }
 
-		public async Task InsertBatch<T>(CloudTable table, List<T> entities) where T : TableEntity
+
+
+
+
+
+		public async Task InsertBatchAsync<T>(CloudTable table, List<T> entities) where T : TableEntity
 		{
       int rowOffset = 0;
 
@@ -55,6 +82,7 @@ namespace AzureTableStorage.Utils
 
       entities = entities.OrderBy(_ => _.PartitionKey).ToList();
 
+      // Need to chunk the data down to 100's. Can only insert 100 at a time.
       while (rowOffset < entities.Count)
       {
         // next batch
@@ -63,40 +91,25 @@ namespace AzureTableStorage.Utils
 
         var partitionKeys = rows.Select(_ => _.PartitionKey).Distinct();
 
+        // Can only batch insert same partitionKeys per batch
         foreach (var pkRow in partitionKeys)
         {
           var rowsToAdd = rows.Where(_ => _.PartitionKey == pkRow).ToList();
-          await UpdateBatchAsync(table, rowsToAdd);
-          //var task = CreateTask(table, rowsToAdd);
-          //tasks.Add(task);
+          var batch = new TableBatchOperation();
+
+          foreach (var row in rowsToAdd)
+          {
+            batch.InsertOrReplace(row);
+          }
+          await table.ExecuteBatchAsync(batch);
         }
 
         rowOffset += rows.Count;
       }
-
-     // await Task.WhenAll(tasks);
-
     }
 
 
-    private async Task UpdateBatchAsync<T>(CloudTable table, List<T> customerEntities) where T : TableEntity
-		{
-      //var task = Task.Factory.StartNew(() =>
-      //{
-        var batch = new TableBatchOperation();
 
-        foreach (var row in customerEntities)
-        {
-          batch.InsertOrReplace(row);
-        }
-
-        // submit
-        await table.ExecuteBatchAsync(batch);
-
-      //});
-
-      //return task;
-    }
 		
 
 
