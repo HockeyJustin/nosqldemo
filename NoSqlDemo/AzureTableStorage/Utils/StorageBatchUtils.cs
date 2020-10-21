@@ -23,9 +23,12 @@ namespace AzureTableStorage.Utils
 
       var tasks = new List<Task>();
 
+      entities = entities.OrderBy(_ => _.PartitionKey).ToList();
+
       while (rowOffset < entities.Count)
       {
         // next batch
+        Console.WriteLine($"Batch: {rowOffset}");
         var rows = entities.Skip(rowOffset).Take(100).ToList();
 
         var partitionKeys = rows.Select(_ => _.PartitionKey).Distinct();
@@ -33,22 +36,23 @@ namespace AzureTableStorage.Utils
         foreach (var pkRow in partitionKeys)
         {
           var rowsToAdd = rows.Where(_ => _.PartitionKey == pkRow).ToList();
-          var task = CreateTask(table, rowsToAdd);
-          tasks.Add(task);
+          await CreateTask(table, rowsToAdd);
+          //var task = CreateTask(table, rowsToAdd);
+          //tasks.Add(task);
         }
 
         rowOffset += rows.Count;
       }
 
-      await Task.WhenAll(tasks);
+     // await Task.WhenAll(tasks);
 
     }
 
 
-    private Task CreateTask<T>(CloudTable table, List<T> customerEntities) where T : TableEntity
+    private async Task CreateTask<T>(CloudTable table, List<T> customerEntities) where T : TableEntity
 		{
-      var task = Task.Factory.StartNew(() =>
-      {
+      //var task = Task.Factory.StartNew(() =>
+      //{
         var batch = new TableBatchOperation();
 
         foreach (var row in customerEntities)
@@ -57,11 +61,11 @@ namespace AzureTableStorage.Utils
         }
 
         // submit
-        table.ExecuteBatchAsync(batch);
+        await table.ExecuteBatchAsync(batch);
 
-      });
+      //});
 
-      return task;
+      //return task;
     }
 		
 

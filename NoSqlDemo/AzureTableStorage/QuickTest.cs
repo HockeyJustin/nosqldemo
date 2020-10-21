@@ -41,7 +41,7 @@ namespace AzureTableStorage
 
 				Random r = new Random();
 				List<CustomerEntity> customerEntities = new List<CustomerEntity>();
-				for (int i = 1; i <= 1500; i++)
+				for (int i = 1; i <= 100000; i++)
 				{
 					var lIndex = r.Next(0, lastNames.Length - 1);
 					var surname = lastNames[lIndex];
