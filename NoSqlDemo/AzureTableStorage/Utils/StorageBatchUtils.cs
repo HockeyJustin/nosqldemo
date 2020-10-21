@@ -26,6 +26,7 @@ namespace AzureTableStorage.Utils
         new ParallelOptions { MaxDegreeOfParallelism = maxDegreeParallelism },
         (range, loopState) =>
         {
+          // NOTE: ConcurrentBag doesn't have an order.
           ConcurrentBag<T> chunk = new ConcurrentBag<T>();
             // Loop over each range element without a delegate invocation. 
             for (int i = range.Item1; i < range.Item2; i++)
