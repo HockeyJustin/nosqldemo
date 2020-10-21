@@ -51,6 +51,7 @@ namespace NoSqlDemo
 
       services.AddTransient<IMain, Main>();
       services.AddTransient<IStorageUtils, StorageUtils>();
+      services.AddTransient<IStorageBatchUtils, StorageBatchUtils>();
       services.AddTransient<IQuickTest, QuickTest>();
 
       services.AddTransient<ConsoleApplication>(); // IMPORTANT! Register our application entry point

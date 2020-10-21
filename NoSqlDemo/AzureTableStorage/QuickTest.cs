@@ -11,6 +11,7 @@ namespace AzureTableStorage
 	public interface IQuickTest
 	{
 		Task RunSamples();
+		Task RunBatchSample();
 	}
 
 	public class QuickTest : IQuickTest
@@ -18,10 +19,65 @@ namespace AzureTableStorage
 		string connectionString = "UseDevelopmentStorage=true";
 
 		IStorageUtils _storageUtils;
+		IStorageBatchUtils _storageBatchUtils;
 
-		public QuickTest(IStorageUtils storageUtils)
+		public QuickTest(IStorageUtils storageUtils,
+			IStorageBatchUtils storageBatchUtils)
 		{
 			_storageUtils = storageUtils;
+			_storageBatchUtils = storageBatchUtils;
+		}
+
+
+		public async Task RunBatchSample()
+		{
+			try
+			{
+				string tableName = "CustomerBatchDemoTable";
+				CloudTable table = await _storageUtils.CreateOrGetTableAsync(connectionString, tableName);
+
+				string[] lastNames = new string[] { "Jones", "Jones", "Jones", "Jones", "Jones","Jones","Jones",
+																						"Smith", "Roberts" };
+
+				Random r = new Random();
+				List<CustomerEntity> customerEntities = new List<CustomerEntity>();
+				for (int i = 1; i <= 1500; i++)
+				{
+					var lIndex = r.Next(0, lastNames.Length - 1);
+					var surname = lastNames[lIndex];
+					var forename = $"Bert{i.ToString()}";
+					var email = $"{forename}@contoso.com";
+					var phone = $"KLONDIKE-555-" + i;
+
+					CustomerEntity customer = new CustomerEntity(surname, forename, email, phone);
+					customerEntities.Add(customer);
+				}
+
+				await _storageBatchUtils.InsertBatch<CustomerEntity>(table, customerEntities);
+
+				Console.WriteLine("Check the data and see if it's any good. Delete the data? (y/n)");
+				if (Console.ReadLine().ToLower().Contains("y"))
+				{
+					// Delete the table
+					await table.DeleteIfExistsAsync();
+				}
+			}
+			catch (Exception ex)
+			{
+				if (ex is AggregateException)
+				{
+					foreach (var ae in ((AggregateException)ex).Flatten().InnerExceptions)
+					{
+						var msg = ae.ToString();
+						Console.WriteLine(msg);
+					}
+				}
+				else
+				{
+					var msg = ex.ToString();
+					Console.WriteLine(msg);
+				}
+			}
 		}
 
 
@@ -113,6 +169,15 @@ namespace AzureTableStorage
 			PartitionKey = lastName;
 			RowKey = firstName;
 		}
+
+		public CustomerEntity(string lastName, string firstName, string email, string phoneNo)
+			: this(lastName, firstName)
+		{
+			Email = email;
+			PhoneNumber = phoneNo;
+		}
+
+
 
 		public string Email { get; set; }
 
