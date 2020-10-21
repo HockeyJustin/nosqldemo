@@ -2,6 +2,7 @@
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
@@ -33,7 +34,7 @@ namespace AzureTableStorage
 		{
 			try
 			{
-				string tableName = "CustomerBatchDemoTable";
+				string tableName = "CustomerBatchDemoTable2";
 				CloudTable table = await _storageUtils.CreateOrGetTableAsync(connectionString, tableName);
 
 				string[] lastNames = new string[] { "Jones", "Jones", "Jones", "Jones", "Jones","Jones","Jones",
@@ -53,7 +54,27 @@ namespace AzureTableStorage
 					customerEntities.Add(customer);
 				}
 
-				await _storageBatchUtils.InsertBatch<CustomerEntity>(table, customerEntities);
+
+
+				var rangePartitioner = Partitioner.Create(0, customerEntities.Count);
+				Parallel.ForEach(rangePartitioner, 
+					new ParallelOptions { MaxDegreeOfParallelism = 4 },
+					(range, loopState) =>
+				{
+					ConcurrentBag<CustomerEntity> chunk = new ConcurrentBag<CustomerEntity>();
+					// Loop over each range element without a delegate invocation. 
+					for (int i = range.Item1; i < range.Item2; i++)
+					{
+						chunk.Add(customerEntities[i]);
+						
+					}
+					Console.WriteLine($"Range: {range.Item1}-{range.Item2}");
+					_storageBatchUtils.InsertBatch<CustomerEntity>(table, chunk);
+				});
+
+
+
+				/////await _storageBatchUtils.InsertBatch<CustomerEntity>(table, customerEntities);
 
 				Console.WriteLine("Check the data and see if it's any good. Delete the data? (y/n)");
 				if (Console.ReadLine().ToLower().Contains("y"))
